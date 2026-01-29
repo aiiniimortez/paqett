@@ -34,21 +34,25 @@ echo "[+] Required file: $FILE"
 echo
 
 mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
 
 if [ "$MODE" = "offline" ]; then
     echo "[+] Offline mode detected"
-    if [ ! -f "$(pwd)/$FILE" ]; then
+
+    if [ ! -f "$FILE" ]; then
         echo "❌ Required file not found: $FILE"
         echo "Place this file in the current directory and run again."
         exit 1
     fi
-    cp "$(pwd)/$FILE" ./paqet.tar.gz
+
+    cp "$FILE" "$INSTALL_DIR/paqet.tar.gz"
 else
     echo "[+] Downloading $FILE from GitHub..."
     URL="https://github.com/hanselime/paqet/releases/download/$VERSION/$FILE"
-    curl -L -o paqet.tar.gz "$URL"
+    curl -L -o "$INSTALL_DIR/paqet.tar.gz" "$URL"
 fi
+
+cd "$INSTALL_DIR"
+
 
 echo "[+] Extracting..."
 tar -xzf paqet.tar.gz
