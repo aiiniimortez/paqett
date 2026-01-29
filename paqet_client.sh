@@ -2,9 +2,9 @@
 set -e
 
 VERSION="v1.0.0-alpha.8"
-BASE_URL="https://github.com/hanselime/paqet/releases/download/$VERSION"
 INSTALL_DIR="/opt/paqet"
 PORT=9999
+MODE="$1"
 
 echo "[+] Detecting OS and Architecture..."
 
@@ -20,23 +20,37 @@ case "$OS-$ARCH" in
     FILE="paqet-linux-arm64-$VERSION.tar.gz"
     BIN_NAME="paqet_linux_arm64"
     ;;
-  Darwin-x86_64)
-    FILE="paqet-darwin-amd64-$VERSION.tar.gz"
-    BIN_NAME="paqet_darwin_amd64"
+  Darwin-arm64)
+    FILE="paqet-darwin-arm64-$VERSION.tar.gz"
+    BIN_NAME="paqet_darwin_arm64"
     ;;
   *)
-    echo "❌ This OS/Architecture is not supported by this installer."
+    echo "❌ Unsupported OS/Architecture"
     exit 1
     ;;
 esac
 
-URL="$BASE_URL/$FILE"
+echo "[+] Required file: $FILE"
+echo
 
-echo "[+] Downloading $FILE ..."
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-curl -L -o paqet.tar.gz "$URL"
+if [ "$MODE" = "offline" ]; then
+    echo "[+] Offline mode detected"
+    if [ ! -f "$(pwd)/$FILE" ]; then
+        echo "❌ Required file not found: $FILE"
+        echo "Place this file in the current directory and run again."
+        exit 1
+    fi
+    cp "$(pwd)/$FILE" ./paqet.tar.gz
+else
+    echo "[+] Downloading $FILE from GitHub..."
+    URL="https://github.com/hanselime/paqet/releases/download/$VERSION/$FILE"
+    curl -L -o paqet.tar.gz "$URL"
+fi
+
+echo "[+] Extracting..."
 tar -xzf paqet.tar.gz
 chmod +x "$BIN_NAME"
 
@@ -116,7 +130,4 @@ echo "[✓] Paqet client installed and running!"
 echo
 echo ">>> YOUR SECRET KEY (give this to outside server):"
 echo "$SECRET_KEY"
-echo
-echo "Service: systemctl status paqet"
-echo "Config : $INSTALL_DIR/client.yaml"
 echo "========================================"
