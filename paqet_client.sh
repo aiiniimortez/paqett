@@ -1,43 +1,69 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Paqet Client YAML Generator ==="
+VERSION="v1.0.0-alpha.8"
+BASE_URL="https://github.com/hanselime/paqet/releases/download/$VERSION"
+INSTALL_DIR="/opt/paqet"
+PORT=9999
+
+echo "[+] Detecting OS and Architecture..."
+
+OS=$(uname -s)
+ARCH=$(uname -m)
+
+case "$OS-$ARCH" in
+  Linux-x86_64)
+    FILE="paqet-linux-amd64-$VERSION.tar.gz"
+    BIN_NAME="paqet_linux_amd64"
+    ;;
+  Linux-aarch64)
+    FILE="paqet-linux-arm64-$VERSION.tar.gz"
+    BIN_NAME="paqet_linux_arm64"
+    ;;
+  Darwin-x86_64)
+    FILE="paqet-darwin-amd64-$VERSION.tar.gz"
+    BIN_NAME="paqet_darwin_amd64"
+    ;;
+  *)
+    echo "❌ This OS/Architecture is not supported by this installer."
+    exit 1
+    ;;
+esac
+
+URL="$BASE_URL/$FILE"
+
+echo "[+] Downloading $FILE ..."
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
+
+curl -L -o paqet.tar.gz "$URL"
+tar -xzf paqet.tar.gz
+chmod +x "$BIN_NAME"
+
+clear
+echo "=== Paqet Client Setup (Iran Server) ==="
 echo
 
 read -p "Enter your OUTSIDE server IP address: " SERVER_IP
+
 echo
-
-if [ ! -f "./paqet_linux_amd64" ]; then
-  echo "ERROR: paqet_linux_amd64 not found in this directory!"
-  exit 1
-fi
-
-apt update -y >/dev/null
-apt install -y net-tools >/dev/null
-
 echo "[+] Detecting network details..."
+
+apt update -y >/dev/null 2>&1 || true
+apt install -y net-tools >/dev/null 2>&1 || true
 
 IFACE=$(ip r | awk '/default/ {print $5}')
 LOCAL_IP=$(ip -4 addr show "$IFACE" | awk '/inet / {print $2}' | cut -d/ -f1)
 GATEWAY_IP=$(ip r | awk '/default/ {print $3}')
-
 ping -c 1 -W 1 "$GATEWAY_IP" >/dev/null 2>&1 || true
 GATEWAY_MAC=$(arp -n "$GATEWAY_IP" | awk '/ether/ {print $3}')
 
-echo "    Interface: $IFACE"
-echo "    Local IP: $LOCAL_IP"
-echo "    Gateway MAC: $GATEWAY_MAC"
+echo "[+] Generating secret using paqet..."
+SECRET_KEY="$($INSTALL_DIR/$BIN_NAME secret | tr -d '\n')"
 
-echo
-echo "[+] Generating secret key using paqet..."
-SECRET_KEY="$(./paqet_linux_amd64 secret | xargs)"
-echo "    Secret generated."
-
-echo
 echo "[+] Writing client.yaml ..."
 
-cat <<EOF > client.yaml
-# Role must be explicitly set
+cat <<EOF > $INSTALL_DIR/client.yaml
 role: "client"
 
 log:
@@ -53,7 +79,7 @@ network:
     router_mac: "$GATEWAY_MAC"
 
 server:
-  addr: "$SERVER_IP:9999"
+  addr: "$SERVER_IP:$PORT"
 
 transport:
   protocol: "kcp"
@@ -62,10 +88,35 @@ transport:
     key: "$SECRET_KEY"
 EOF
 
+echo "[+] Creating systemd service..."
+
+cat <<EOF > /etc/systemd/system/paqet.service
+[Unit]
+Description=Paqet Client
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/$BIN_NAME run -c client.yaml
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable paqet
+systemctl restart paqet
+
 echo
 echo "========================================"
-echo "[✓] client.yaml created successfully!"
+echo "[✓] Paqet client installed and running!"
 echo
-echo ">>> YOUR SECRET KEY (USE THIS ON SERVER):"
+echo ">>> YOUR SECRET KEY (give this to outside server):"
 echo "$SECRET_KEY"
+echo
+echo "Service: systemctl status paqet"
+echo "Config : $INSTALL_DIR/client.yaml"
 echo "========================================"
