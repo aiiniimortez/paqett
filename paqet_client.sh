@@ -76,6 +76,15 @@ GATEWAY_IP=$(ip r | awk '/default/ {print $3}')
 ping -c 1 -W 1 "$GATEWAY_IP" >/dev/null 2>&1 || true
 GATEWAY_MAC=$(arp -n "$GATEWAY_IP" | awk '/ether/ {print $3}')
 
+echo "[+] Checking paqet binary compatibility..."
+
+if ! $INSTALL_DIR/$BIN_NAME --help >/dev/null 2>&1; then
+    echo
+    echo "❌ This paqet binary is NOT compatible with your system (glibc too old)."
+    echo "You need a statically built version of paqet or a newer OS."
+    exit 1
+fi
+
 echo "[+] Generating secret using paqet..."
 SECRET_KEY="$($INSTALL_DIR/$BIN_NAME secret | tr -d '\n')"
 
