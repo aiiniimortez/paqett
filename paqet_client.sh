@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-VERSION="v1.0.0-alpha.8"
+VERSION="v1.0.0-alpha.15"
 INSTALL_DIR="/opt/paqet"
 PORT=9999
 MODE="$1"
